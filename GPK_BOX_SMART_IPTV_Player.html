@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>GPK BOX SMART - IPTV Player</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- HLS.js for .m3u8 / live TV stream playback -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts: Inter & Noto Sans Arabic (for Kurdish Badini Arabic Script) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Arabic:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-glow: rgba(59, 130, 246, 0.45);
+      --bg-main: #090d16;
+      --bg-panel: #111827;
+      --bg-card: #1a2234;
+    }
+
+    /* Theme Presets */
+    [data-theme="blue"] {
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-glow: rgba(59, 130, 246, 0.45);
+    }
+    [data-theme="emerald"] {
+      --accent: #10b981;
+      --accent-hover: #059669;
+      --accent-glow: rgba(16, 185, 129, 0.45);
+    }
+    [data-theme="purple"] {
+      --accent: #a855f7;
+      --accent-hover: #9333ea;
+      --accent-glow: rgba(168, 85, 247, 0.45);
+    }
+    [data-theme="gold"] {
+      --accent: #f59e0b;
+      --accent-hover: #d97706;
+      --accent-glow: rgba(245, 158, 11, 0.45);
+    }
+    [data-theme="crimson"] {
+      --accent: #ef4444;
+      --accent-hover: #dc2626;
+      --accent-glow: rgba(239, 68, 68, 0.45);
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans Arabic', sans-serif;
+      background-color: var(--bg-main);
+      color: #f8fafc;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    [dir="rtl"] body, [dir="rtl"] * {
+      font-family: 'Noto Sans Arabic', 'Inter', sans-serif;
+    }
+
+    /* Smart TV D-Pad / Keyboard Focus Ring */
+    .tv-focusable:focus,
+    .tv-focusable:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+      box-shadow: 0 0 20px var(--accent-glow);
+      transform: scale(1.015);
+      z-index: 20;
+    }
+
+    .tv-focusable {
+      transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+    }
+
+    .accent-bg {
+      background-color: var(--accent);
+    }
+    .accent-bg:hover {
+      background-color: var(--accent-hover);
+    }
+    .accent-text {
+      color: var(--accent);
+    }
+    .accent-border {
+      border-color: var(--accent);
+    }
+
+    /* Custom Scrollbar for Smart TV & Desktop */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* Fullscreen Theater Mode */
+    .theater-active #sidebar-panel {
+      display: none !important;
+    }
+    .theater-active #player-container {
+      height: calc(100vh - 64px) !important;
+    }
+  </style>
+</head>
+<body data-theme="blue" class="min-h-screen flex flex-col select-none">
+
+  <!-- Toast Notification Banner (Replaces alert) -->
+  <div id="toast-container" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none w-11/12 max-w-md"></div>
+
+  <!-- Top Navigation Header (Smart TV & Mobile Optimized) -->
+  <header class="h-16 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30">
+    <!-- Brand Logo -->
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl accent-bg flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <i data-lucide="tv" class="w-6 h-6 text-white"></i>
+      </div>
+      <div>
+        <h1 class="text-lg sm:text-xl font-extrabold tracking-tight flex items-center gap-2">
+          <span>GPK BOX</span>
+          <span class="text-xs font-bold px-2 py-0.5 rounded-md accent-bg text-white uppercase tracking-wider">SMART</span>
+        </h1>
+        <p id="active-playlist-label" class="text-xs text-slate-400 truncate max-w-[140px] sm:max-w-[240px]">Free-TV Global Playlist</p>
+      </div>
+    </div>
+
+    <!-- Center Search Bar (Hidden on very small screens, toggled via button) -->
+    <div class="hidden md:flex items-center flex-1 max-w-md mx-4">
+      <div class="relative w-full">
+        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3.5"></i>
+        <input
+          id="search-input"
+          type="text"
+          data-i18n-placeholder="searchPlaceholder"
+          placeholder="Search channels or categories..."
+          class="tv-focusable w-full bg-slate-800/90 border border-slate-700 rounded-xl py-2 ps-10 pe-9 text-sm text-white placeholder-slate-400 focus:outline-none"
+        />
+        <button id="clear-search-btn" class="hidden absolute top-1/2 -translate-y-1/2 end-2.5 text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Action Buttons -->
+    <div class="flex items-center gap-2 sm:gap-3">
+      <!-- Quick Language Toggle -->
+      <button
+        id="quick-lang-btn"
+        onclick="toggleLanguage()"
+        class="tv-focusable px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs sm:text-sm font-semibold flex items-center gap-1.5"
+        title="Switch Language (English / کوردی بادینی)"
+      >
+        <i data-lucide="languages" class="w-4 h-4 accent-text"></i>
+        <span id="lang-badge-text">کوردی</span>
+      </button>
+
+      <!-- Settings & Playlists Modal Button -->
+      <button
+        id="open-settings-btn"
+        onclick="openSettingsModal()"
+        class="tv-focusable px-3.5 py-2 rounded-xl accent-bg text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md"
+      >
+        <i data-lucide="settings" class="w-4 h-4"></i>
+        <span data-i18n="settings">Settings</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Mobile Search Bar -->
+  <div class="md:hidden bg-slate-900 border-b border-slate-800 px-3 py-2">
+    <div class="relative w-full">
+      <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute top-1/2 -translate-y-1/2 start-3"></i>
+      <input
+        id="mobile-search-input"
+        type="text"
+        data-i18n-placeholder="searchPlaceholder"
+        placeholder="Search channels or categories..."
+        class="w-full bg-slate-800 border border-slate-700 rounded-xl py-2 ps-9 pe-8 text-sm text-white placeholder-slate-400 focus:outline-none"
+      />
+    </div>
+  </div>
+
+  <!-- Main Workspace: Video Player + Channel Guide -->
+  <main id="main-workspace" class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- LEFT / TOP: Smart Channel Screen (Video Player) -->
+    <section id="player-section" class="w-full lg:w-7/12 xl:w-8/12 flex flex-col bg-black border-b lg:border-b-0 lg:border-e border-slate-800">
+      <!-- Video Wrapper -->
+      <div id="player-container" class="relative w-full aspect-video lg:aspect-auto lg:flex-1 bg-black flex items-center justify-center overflow-hidden group">
+        <video
+          id="video-player"
+          class="w-full h-full object-contain bg-black"
+          playsinline
+          autoplay
+        ></video>
+
+        <!-- Loading / Buffering Spinner Overlay -->
+        <div id="player-loader" class="hidden absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-10">
+          <div class="w-12 h-12 border-4 border-slate-600 border-t-white rounded-full animate-spin"></div>
+          <p id="loader-text" class="text-sm font-medium text-slate-200" data-i18n="connectingStream">Connecting to live stream...</p>
+        </div>
+
+        <!-- Idle / Error Screen Overlay -->
+        <div id="player-placeholder" class="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col items-center justify-center p-6 text-center z-10">
+          <div class="w-20 h-20 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center mb-4 shadow-xl">
+            <i data-lucide="tv-2" class="w-10 h-10 accent-text"></i>
+          </div>
+          <h2 id="placeholder-title" class="text-xl sm:text-2xl font-bold text-white mb-2" data-i18n="welcomeTitle">GPK BOX SMART TV</h2>
+          <p id="placeholder-desc" class="text-sm text-slate-400 max-w-md mb-5" data-i18n="welcomeSubtitle">
+            Select any channel from the list to start watching live TV, or open Settings to add your M3U URL or file.
+          </p>
+          <div class="flex flex-wrap items-center justify-center gap-3">
+            <button onclick="playFirstChannel()" class="tv-focusable px-5 py-2.5 rounded-xl accent-bg text-white font-bold text-sm flex items-center gap-2 shadow-lg">
+              <i data-lucide="play" class="w-4 h-4"></i>
+              <span data-i18n="playFirst">Watch Channel #1</span>
+            </button>
+            <button onclick="openSettingsModal()" class="tv-focusable px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold text-sm flex items-center gap-2">
+              <i data-lucide="folder-plus" class="w-4 h-4"></i>
+              <span data-i18n="managePlaylists">Playlists & Settings</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Top OSD Channel Info Banner (Visible on Hover/Tap) -->
+        <div id="player-osd-top" class="absolute top-0 inset-x-0 bg-gradient-to-b from-black/90 via-black/50 to-transparent p-4 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-none">
+          <div class="flex items-center gap-3">
+            <span id="osd-ch-num" class="px-2.5 py-1 rounded-lg accent-bg text-white font-extrabold text-sm">#1</span>
+            <div>
+              <h3 id="osd-ch-name" class="text-base sm:text-lg font-bold text-white leading-tight">Channel Name</h3>
+              <p id="osd-ch-group" class="text-xs text-slate-300">Category</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="osd-live-badge" class="px-2.5 py-1 rounded-md bg-red-600/90 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+              <span data-i18n="live">LIVE</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Smart TV Control Bar -->
+      <div class="bg-slate-900 border-t border-slate-800 px-3 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+        <!-- Current Channel Quick Info -->
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <img
+            id="bar-ch-logo"
+            src="https://placehold.co/48x48/1e293b/94a3b8?text=TV"
+            onerror="this.src='https://placehold.co/48x48/1e293b/94a3b8?text=TV'"
+            alt="Logo"
+            class="w-10 h-10 rounded-xl object-contain bg-slate-800 p-1 border border-slate-700 shrink-0"
+          />
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span id="bar-ch-number" class="text-xs font-extrabold px-2 py-0.5 rounded bg-slate-800 accent-text">#--</span>
+              <h4 id="bar-ch-title" class="text-sm sm:text-base font-bold text-white truncate" data-i18n="noChannelSelected">No Channel Playing</h4>
+            </div>
+            <p id="bar-ch-category" class="text-xs text-slate-400 truncate">GPK BOX SMART IPTV</p>
+          </div>
+        </div>
+
+        <!-- Remote Control Action Buttons -->
+        <div class="flex items-center gap-1.5 sm:gap-2">
+          <button onclick="prevChannel()" class="tv-focusable p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white" title="Previous Channel">
+            <i data-lucide="skip-back" class="w-4 h-4"></i>
+          </button>
+          <button id="play-pause-btn" onclick="togglePlayPause()" class="tv-focusable p-2.5 rounded-xl accent-bg text-white shadow" title="Play / Pause">
+            <i data-lucide="pause" class="w-4 h-4"></i>
+          </button>
+          <button onclick="nextChannel()" class="tv-focusable p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white" title="Next Channel">
+            <i data-lucide="skip-forward" class="w-4 h-4"></i>
+          </button>
+          <button id="mute-btn" onclick="toggleMute()" class="tv-focusable p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white" title="Mute / Unmute">
+            <i data-lucide="volume-2" class="w-4 h-4"></i>
+          </button>
+          <button onclick="toggleTheaterMode()" class="hidden lg:flex tv-focusable p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white" title="Theater Mode">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+          </button>
+          <button onclick="toggleFullscreen()" class="tv-focusable p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white" title="Fullscreen">
+            <i data-lucide="expand" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT / BOTTOM: Channel Browser & Management Panel -->
+    <section id="sidebar-panel" class="w-full lg:w-5/12 xl:w-4/12 flex flex-col bg-slate-900/60 h-[calc(100vh-340px)] lg:h-[calc(100vh-64px)]">
+      <!-- Filter Tabs: All, Favorites, Pinned -->
+      <div class="p-3 bg-slate-900 border-b border-slate-800 flex flex-col gap-2.5">
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            id="tab-all"
+            onclick="setFilterTab('all')"
+            class="tv-focusable py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 accent-bg text-white"
+          >
+            <i data-lucide="list" class="w-4 h-4"></i>
+            <span data-i18n="tabAll">All</span>
+            <span id="count-all" class="text-xs opacity-80">(0)</span>
+          </button>
+          <button
+            id="tab-favorites"
+            onclick="setFilterTab('favorites')"
+            class="tv-focusable py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700"
+          >
+            <i data-lucide="heart" class="w-4 h-4 text-rose-400"></i>
+            <span data-i18n="tabFavorites">Favorites</span>
+            <span id="count-favorites" class="text-xs opacity-80">(0)</span>
+          </button>
+          <button
+            id="tab-pinned"
+            onclick="setFilterTab('pinned')"
+            class="tv-focusable py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700"
+          >
+            <i data-lucide="pin" class="w-4 h-4 text-amber-400"></i>
+            <span data-i18n="tabPinned">Pinned</span>
+            <span id="count-pinned" class="text-xs opacity-80">(0)</span>
+          </button>
+        </div>
+
+        <!-- Category Dropdown + Quick Reset Deleted -->
+        <div class="flex items-center gap-2">
+          <select
+            id="category-select"
+            onchange="setCategoryFilter(this.value)"
+            class="tv-focusable flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none"
+          >
+            <option value="ALL">All Categories</option>
+          </select>
+          <button
+            id="restore-deleted-btn"
+            onclick="restoreDeletedChannels()"
+            class="hidden tv-focusable px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-amber-400 flex items-center gap-1 shrink-0"
+            title="Restore deleted channels"
+          >
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span data-i18n="restore">Restore</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Channel List Container -->
+      <div id="channel-list" class="flex-1 overflow-y-auto p-2.5 space-y-2">
+        <!-- Channels dynamically rendered here -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- SETTINGS & PLAYLIST MANAGER MODAL -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+      <!-- Modal Header -->
+      <div class="px-5 py-4 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl accent-bg flex items-center justify-center">
+            <i data-lucide="sliders" class="w-5 h-5 text-white"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-white" data-i18n="settingsTitle">GPK BOX SMART Settings</h2>
+            <p class="text-xs text-slate-400" data-i18n="settingsSubtitle">Manage Playlists, Language & Theme</p>
+          </div>
+        </div>
+        <button onclick="closeSettingsModal()" class="tv-focusable p-2 rounded-xl bg-slate-700/70 hover:bg-slate-700 text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 overflow-y-auto space-y-6">
+
+        <!-- 1. Language Selection (English & Kurdish Badini Arabic Script) -->
+        <div>
+          <label class="block text-sm font-bold text-slate-200 mb-2.5 flex items-center gap-2">
+            <i data-lucide="globe" class="w-4 h-4 accent-text"></i>
+            <span data-i18n="selectLanguage">Language / زمان</span>
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <button
+              id="lang-btn-en"
+              onclick="setLanguage('en')"
+              class="tv-focusable p-3.5 rounded-xl border-2 text-start flex items-center justify-between transition-all"
+            >
+              <div>
+                <div class="font-bold text-sm text-white">English</div>
+                <div class="text-xs text-slate-400">LTR Interface</div>
+              </div>
+              <span class="text-lg font-extrabold text-slate-300">EN</span>
+            </button>
+            <button
+              id="lang-btn-ku"
+              onclick="setLanguage('ku')"
+              class="tv-focusable p-3.5 rounded-xl border-2 text-start flex items-center justify-between transition-all"
+            >
+              <div>
+                <div class="font-bold text-base text-white">کوردی (بادینی)</div>
+                <div class="text-xs text-slate-400">ڕووکارێ ب کوردی</div>
+              </div>
+              <span class="text-lg font-extrabold text-slate-300">کو</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Color Theme Selection -->
+        <div>
+          <label class="block text-sm font-bold text-slate-200 mb-2.5 flex items-center gap-2">
+            <i data-lucide="palette" class="w-4 h-4 accent-text"></i>
+            <span data-i18n="selectTheme">Color Theme</span>
+          </label>
+          <div class="grid grid-cols-5 gap-2.5">
+            <button onclick="setTheme('blue')" data-theme-btn="blue" class="tv-focusable p-2.5 rounded-xl bg-slate-800 border-2 border-transparent flex flex-col items-center gap-1.5">
+              <span class="w-7 h-7 rounded-full bg-blue-500 shadow-md"></span>
+              <span class="text-xs font-semibold text-slate-300">Blue</span>
+            </button>
+            <button onclick="setTheme('emerald')" data-theme-btn="emerald" class="tv-focusable p-2.5 rounded-xl bg-slate-800 border-2 border-transparent flex flex-col items-center gap-1.5">
+              <span class="w-7 h-7 rounded-full bg-emerald-500 shadow-md"></span>
+              <span class="text-xs font-semibold text-slate-300">Emerald</span>
+            </button>
+            <button onclick="setTheme('purple')" data-theme-btn="purple" class="tv-focusable p-2.5 rounded-xl bg-slate-800 border-2 border-transparent flex flex-col items-center gap-1.5">
+              <span class="w-7 h-7 rounded-full bg-purple-500 shadow-md"></span>
+              <span class="text-xs font-semibold text-slate-300">Purple</span>
+            </button>
+            <button onclick="setTheme('gold')" data-theme-btn="gold" class="tv-focusable p-2.5 rounded-xl bg-slate-800 border-2 border-transparent flex flex-col items-center gap-1.5">
+              <span class="w-7 h-7 rounded-full bg-amber-500 shadow-md"></span>
+              <span class="text-xs font-semibold text-slate-300">Gold</span>
+            </button>
+            <button onclick="setTheme('crimson')" data-theme-btn="crimson" class="tv-focusable p-2.5 rounded-xl bg-slate-800 border-2 border-transparent flex flex-col items-center gap-1.5">
+              <span class="w-7 h-7 rounded-full bg-red-500 shadow-md"></span>
+              <span class="text-xs font-semibold text-slate-300">Crimson</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Add New M3U URL or Upload Local M3U File -->
+        <div class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-4 space-y-4">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-4 h-4 accent-text"></i>
+            <span data-i18n="addPlaylistTitle">Add M3U Link or Local File</span>
+          </h3>
+
+          <!-- Add via URL -->
+          <div class="space-y-2.5">
+            <input
+              id="new-playlist-name"
+              type="text"
+              data-i18n-placeholder="playlistNamePlaceholder"
+              placeholder="Playlist Name (e.g., Kurdish TV, Sports)"
+              class="tv-focusable w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400"
+            />
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input
+                id="new-playlist-url"
+                type="url"
+                dir="ltr"
+                placeholder="https://example.com/playlist.m3u8"
+                class="tv-focusable flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-400"
+              />
+              <button
+                onclick="handleAddUrlPlaylist()"
+                class="tv-focusable px-5 py-2.5 rounded-xl accent-bg text-white font-bold text-sm flex items-center justify-center gap-2 shrink-0"
+              >
+                <i data-lucide="link" class="w-4 h-4"></i>
+                <span data-i18n="saveAndOpen">Save & Open</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="relative flex py-1 items-center">
+            <div class="flex-grow border-t border-slate-700"></div>
+            <span class="flex-shrink mx-3 text-xs text-slate-400 uppercase" data-i18n="orUploadFile">OR UPLOAD M3U FILE</span>
+            <div class="flex-grow border-t border-slate-700"></div>
+          </div>
+
+          <!-- Upload M3U File -->
+          <label class="tv-focusable flex flex-col items-center justify-center border-2 border-dashed border-slate-600 hover:border-slate-400 rounded-xl p-4 cursor-pointer bg-slate-900/50 transition-colors">
+            <i data-lucide="file-up" class="w-7 h-7 accent-text mb-1.5"></i>
+            <span class="text-sm font-semibold text-white" data-i18n="chooseM3uFile">Choose .m3u or .m3u8 file from Phone / TV</span>
+            <span class="text-xs text-slate-400 mt-0.5" data-i18n="fileSavedLocally">Automatically saved to your device storage</span>
+            <input id="m3u-file-input" type="file" accept=".m3u,.m3u8,text/plain" class="hidden" onchange="handleFileUpload(event)" />
+          </label>
+        </div>
+
+        <!-- 4. Saved Playlists List -->
+        <div>
+          <h3 class="text-sm font-bold text-slate-200 mb-2.5 flex items-center gap-2">
+            <i data-lucide="bookmark" class="w-4 h-4 accent-text"></i>
+            <span data-i18n="savedPlaylists">Saved Playlists</span>
+          </h3>
+          <div id="saved-playlists-list" class="space-y-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    // =========================================================================
+    // 1. INTERNATIONALIZATION (ENGLISH & KURDISH BADINI IN ARABIC SCRIPT)
+    // =========================================================================
+    const TRANSLATIONS = {
+      en: {
+        searchPlaceholder: "Search channels or categories...",
+        settings: "Settings",
+        connectingStream: "Connecting to live stream...",
+        welcomeTitle: "GPK BOX SMART TV",
+        welcomeSubtitle: "Select any channel from the list to start watching live TV, or open Settings to add your M3U URL or file.",
+        playFirst: "Watch Channel #1",
+        managePlaylists: "Playlists & Settings",
+        live: "LIVE",
+        noChannelSelected: "No Channel Playing",
+        tabAll: "All",
+        tabFavorites: "Favorites",
+        tabPinned: "Pinned",
+        restore: "Restore",
+        allCategories: "All Categories",
+        settingsTitle: "GPK BOX SMART Settings",
+        settingsSubtitle: "Manage Playlists, Language & Theme",
+        selectLanguage: "Language / زمان",
+        selectTheme: "Color Theme",
+        addPlaylistTitle: "Add M3U Link or Local File",
+        playlistNamePlaceholder: "Playlist Name (e.g., Kurdish TV, Sports)",
+        saveAndOpen: "Save & Open",
+        orUploadFile: "OR UPLOAD M3U FILE",
+        chooseM3uFile: "Choose .m3u or .m3u8 file from Phone / TV",
+        fileSavedLocally: "Automatically saved to your device storage",
+        savedPlaylists: "Saved Playlists",
+        moveToOne: "Move to #1",
+        pinChannel: "Pin / Unpin",
+        favChannel: "Favorite",
+        delChannel: "Delete",
+        activeBadge: "Active",
+        loadBtn: "Open",
+        toastMovedOne: "Moved channel to #1!",
+        toastPinned: "Channel pinned to top!",
+        toastUnpinned: "Channel unpinned",
+        toastFavAdded: "Added to Favorites",
+        toastFavRemoved: "Removed from Favorites",
+        toastDeleted: "Channel deleted",
+        toastRestored: "Deleted channels restored!",
+        toastPlaylistLoaded: "Playlist loaded successfully!",
+        toastPlaylistError: "Could not load playlist. Check URL or connection.",
+        toastStreamError: "Stream offline or blocked by CORS. Trying next or pick another channel.",
+        emptyChannels: "No channels match your filter."
+      },
+      ku: {
+        searchPlaceholder: "لێگەڕیان ل کەنالان یان بەشان...",
+        settings: "ڕێکخستن",
+        connectingStream: "گرێدان ب پەخشێ ڕاستەوخۆ...",
+        welcomeTitle: "تەلەفزیۆنا زیرەک GPK BOX SMART",
+        welcomeSubtitle: "کەنالەکی ژ لیستی هەلبژێرە بۆ دیتنا پەخشێ ڕاستەوخۆ، یان بچۆ د ڕێکخستنان دا بۆ زێدەکرنا لینکێ M3U یان فایلێ.",
+        playFirst: "لێدانا کەنالێ ژمارە ١",
+        managePlaylists: "لیستێن کەنالان و ڕێکخستن",
+        live: "ڕاستەوخۆ",
+        noChannelSelected: "چ کەنال نەهاتینە لێدان",
+        tabAll: "هەمی",
+        tabFavorites: "دڵخواز",
+        tabPinned: "جێگیرکری",
+        restore: "ڤەگەڕاندن",
+        allCategories: "هەمی بەش",
+        settingsTitle: "ڕێکخستنێن GPK BOX SMART",
+        settingsSubtitle: "ڕێڤەبرنا لیستێن M3U، زمان و ڕەنگان",
+        selectLanguage: "زمان / Language",
+        selectTheme: "ڕەنگێ بەرنامەی",
+        addPlaylistTitle: "زێدەکرنا لینکێ M3U یان فایلێ",
+        playlistNamePlaceholder: "ناڤێ لیستێ (بۆ نموونە: کەنالێن کوردی)",
+        saveAndOpen: "هەلگرتن و ڤەکرن",
+        orUploadFile: "یان بارکرنا فایلێ M3U",
+        chooseM3uFile: "فایلێ .m3u یان .m3u8 ژ مۆبایل یان تەلەفزیۆنێ هەلبژێرە",
+        fileSavedLocally: "ب شێوەیەکێ ئۆتۆماتیکی د ناڤ ئامیرێ تە دا دهێتە هەلگرتن",
+        savedPlaylists: "لیستێن هەلگرتی",
+        moveToOne: "ببە ژمارە ١",
+        pinChannel: "جێگیرکرن",
+        favChannel: "دڵخواز",
+        delChannel: "ژێبرن",
+        activeBadge: "کارایە",
+        loadBtn: "ڤەکرن",
+        toastMovedOne: "کەنال بوو ژمارە ١!",
+        toastPinned: "کەنال ل سەری هاتە جێگیرکرن!",
+        toastUnpinned: "جێگیرکرنا کەنالی هاتە لادان",
+        toastFavAdded: "زێدەبوو د ناڤ دڵخوازان دا",
+        toastFavRemoved: "ژ ناڤ دڵخوازان هاتە لادان",
+        toastDeleted: "کەنال هاتە ژێبرن",
+        toastRestored: "کەنالێن ژێبری هاتنە ڤەگەڕاندن!",
+        toastPlaylistLoaded: "لیستا کەنالان ب سەرکەفتیانە هاتە ڤەکرن!",
+        toastPlaylistError: "نەشیا لیستێ ڤەکەت. لینکێ خۆ یان ئینتەرنێتێ بپشکنە.",
+        toastStreamError: "پەخشێ ڤی کەنالی نینە یان یێ گرتییە. کەنالەکێ دی هەلبژێرە.",
+        emptyChannels: "چ کەنال نەهاتنە دیتن."
+      }
+    };
+
+    // =========================================================================
+    // 2. STATE & STORAGE MANAGEMENT
+    // =========================================================================
+    const DEFAULT_PLAYLIST_URL = "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8";
+    const STORAGE_KEYS = {
+      LANG: "gpk_box_lang",
+      THEME: "gpk_box_theme",
+      PLAYLISTS: "gpk_box_playlists",
+      ACTIVE_PLAYLIST_ID: "gpk_box_active_playlist",
+      CUSTOM_ORDER: "gpk_box_custom_order",
+      PINNED: "gpk_box_pinned",
+      FAVORITES: "gpk_box_favorites",
+      DELETED: "gpk_box_deleted"
+    };
+
+    let state = {
+      lang: localStorage.getItem(STORAGE_KEYS.LANG) || "en",
+      theme: localStorage.getItem(STORAGE_KEYS.THEME) || "blue",
+      playlists: [],
+      activePlaylistId: localStorage.getItem(STORAGE_KEYS.ACTIVE_PLAYLIST_ID) || "default_free_tv",
+      channels: [], // Parsed channels from active playlist
+      currentChannelId: null,
+      filterTab: "all", // 'all' | 'favorites' | 'pinned'
+      categoryFilter: "ALL",
+      searchQuery: "",
+      // Per-playlist user customizations stored in maps keyed by playlistId
+      customOrder: JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_ORDER) || "{}"),
+      pinnedIds: JSON.parse(localStorage.getItem(STORAGE_KEYS.PINNED) || "{}"),
+      favoriteIds: JSON.parse(localStorage.getItem(STORAGE_KEYS.FAVORITES) || "{}"),
+      deletedIds: JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED) || "{}")
+    };
+
+    let hlsInstance = null;
+
+    // Initialize Default Playlists if empty
+    function initPlaylists() {
+      const saved = localStorage.getItem(STORAGE_KEYS.PLAYLISTS);
+      if (saved) {
+        try {
+          state.playlists = JSON.parse(saved);
+        } catch (e) {
+          state.playlists = [];
+        }
+      }
+      if (!state.playlists || state.playlists.length === 0) {
+        state.playlists = [
+          {
+            id: "default_free_tv",
+            name: "Free-TV Global IPTV",
+            type: "url",
+            url: DEFAULT_PLAYLIST_URL
+          }
+        ];
+        savePlaylists();
+      }
+    }
+
+    function savePlaylists() {
+      try {
+        localStorage.setItem(STORAGE_KEYS.PLAYLISTS, JSON.stringify(state.playlists));
+      } catch (e) {
+        showToast("Storage full: Large M3U file kept in active session.", "warning");
+      }
+    }
+
+    function saveUserCustomizations() {
+      localStorage.setItem(STORAGE_KEYS.CUSTOM_ORDER, JSON.stringify(state.customOrder));
+      localStorage.setItem(STORAGE_KEYS.PINNED, JSON.stringify(state.pinnedIds));
+      localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(state.favoriteIds));
+      localStorage.setItem(STORAGE_KEYS.DELETED, JSON.stringify(state.deletedIds));
+    }
+
+    // =========================================================================
+    // 3. M3U / M3U8 PARSER
+    // =========================================================================
+    function parseM3U(content) {
+      const lines = content.split(/\r?\n/);
+      const channels = [];
+      let currentInfo = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        if (line.startsWith("#EXTINF:")) {
+          // Extract attributes
+          const logoMatch = line.match(/tvg-logo="([^"]*)"/i);
+          const groupMatch = line.match(/group-title="([^"]*)"/i);
+          const idMatch = line.match(/tvg-id="([^"]*)"/i);
+
+          // Channel name is after the last comma
+          const commaIndex = line.lastIndexOf(",");
+          const name = commaIndex !== -1 ? line.substring(commaIndex + 1).trim() : "Unknown Channel";
+
+          currentInfo = {
+            tvgId: idMatch ? idMatch[1] : "",
+            name: name || "Live Channel",
+            logo: logoMatch && logoMatch[1] ? logoMatch[1] : "",
+            group: groupMatch && groupMatch[1] ? groupMatch[1] : "General"
+          };
+        } else if (!line.startsWith("#")) {
+          // Stream URL line
+          const url = line;
+          const name = currentInfo ? currentInfo.name : `Channel ${channels.length + 1}`;
+          // Create deterministic unique ID based on name + url
+          const uniqueId = btoa(unescape(encodeURIComponent(name + "|" + url))).slice(0, 28);
+
+          channels.push({
+            id: uniqueId,
+            name: name,
+            logo: currentInfo ? currentInfo.logo : "",
+            group: currentInfo ? currentInfo.group : "General",
+            url: url
+          });
+          currentInfo = null;
+        }
+      }
+      return channels;
+    }
+
+    // =========================================================================
+    // 4. LOAD & SWITCH PLAYLISTS (URL & LOCAL FILE)
+    // =========================================================================
+    async function loadActivePlaylist() {
+      const playlist = state.playlists.find(p => p.id === state.activePlaylistId) || state.playlists[0];
+      if (!playlist) return;
+
+      state.activePlaylistId = playlist.id;
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_PLAYLIST_ID, playlist.id);
+      document.getElementById("active-playlist-label").textContent = playlist.name;
+
+      const listEl = document.getElementById("channel-list");
+      listEl.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-12 text-slate-400 gap-3">
+          <div class="w-8 h-8 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin"></div>
+          <p class="text-sm font-medium">${t("connectingStream")}</p>
+        </div>
+      `;
+
+      try {
+        let rawText = "";
+        if (playlist.type === "file" && playlist.content) {
+          rawText = playlist.content;
+        } else if (playlist.url) {
+          const response = await fetch(playlist.url);
+          if (!response.ok) throw new Error("Network error");
+          rawText = await response.text();
+        }
+
+        const parsed = parseM3U(rawText);
+        if (parsed.length === 0) throw new Error("Empty M3U");
+
+        state.channels = parsed;
+        populateCategories();
+        renderChannelList();
+        renderSavedPlaylists();
+      } catch (err) {
+        console.error("Failed to load playlist:", err);
+        listEl.innerHTML = `
+          <div class="p-6 text-center text-slate-400 space-y-3">
+            <i data-lucide="alert-triangle" class="w-10 h-10 text-amber-400 mx-auto"></i>
+            <p class="text-sm">${t("toastPlaylistError")}</p>
+            <button onclick="openSettingsModal()" class="px-4 py-2 rounded-xl accent-bg text-white text-xs font-bold">
+              ${t("managePlaylists")}
+            </button>
+          </div>
+        `;
+        lucide.createIcons();
+        showToast(t("toastPlaylistError"), "error");
+      }
+    }
+
+    async function handleAddUrlPlaylist() {
+      const nameInput = document.getElementById("new-playlist-name");
+      const urlInput = document.getElementById("new-playlist-url");
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      const name = nameInput.value.trim() || `IPTV List #${state.playlists.length + 1}`;
+      const newId = "pl_" + Date.now();
+
+      state.playlists.unshift({
+        id: newId,
+        name: name,
+        type: "url",
+        url: url
+      });
+      savePlaylists();
+
+      nameInput.value = "";
+      urlInput.value = "";
+      state.activePlaylistId = newId;
+      closeSettingsModal();
+      showToast(t("toastPlaylistLoaded"), "success");
+      await loadActivePlaylist();
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function (e) {
+        const content = e.target.result;
+        const newId = "file_" + Date.now();
+        const cleanName = file.name.replace(/\.(m3u8?|txt)$/i, "");
+
+        state.playlists.unshift({
+          id: newId,
+          name: cleanName,
+          type: "file",
+          content: content
+        });
+        savePlaylists();
+
+        state.activePlaylistId = newId;
+        closeSettingsModal();
+        showToast(t("toastPlaylistLoaded"), "success");
+        await loadActivePlaylist();
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
+
+    function selectPlaylist(id) {
+      state.activePlaylistId = id;
+      state.categoryFilter = "ALL";
+      closeSettingsModal();
+      loadActivePlaylist();
+    }
+
+    function deletePlaylist(id, event) {
+      event.stopPropagation();
+      if (state.playlists.length <= 1) return;
+      state.playlists = state.playlists.filter(p => p.id !== id);
+      savePlaylists();
+      if (state.activePlaylistId === id) {
+        state.activePlaylistId = state.playlists[0].id;
+        loadActivePlaylist();
+      } else {
+        renderSavedPlaylists();
+      }
+    }
+
+    // =========================================================================
+    // 5. CHANNEL ORDERING, PINNING, FAVORITING & DELETING
+    // =========================================================================
+    function getProcessedChannels() {
+      const pid = state.activePlaylistId;
+      const deletedSet = new Set(state.deletedIds[pid] || []);
+      const pinnedList = state.pinnedIds[pid] || [];
+      const pinnedSet = new Set(pinnedList);
+      const favSet = new Set(state.favoriteIds[pid] || []);
+      const customOrder = state.customOrder[pid] || [];
+
+      // 1. Filter out deleted channels
+      let list = state.channels.filter(ch => !deletedSet.has(ch.id));
+
+      // 2. Apply custom manual ordering (e.g., channels moved to #1)
+      if (customOrder.length > 0) {
+        const orderMap = new Map();
+        customOrder.forEach((id, idx) => orderMap.set(id, idx));
+        list.sort((a, b) => {
+          const hasA = orderMap.has(a.id);
+          const hasB = orderMap.has(b.id);
+          if (hasA && hasB) return orderMap.get(a.id) - orderMap.get(b.id);
+          if (hasA) return -1;
+          if (hasB) return 1;
+          return 0;
+        });
+      }
+
+      // 3. Pinned channels float to the top in pinned order
+      if (pinnedList.length > 0) {
+        const pinnedChannels = [];
+        const unpinnedChannels = [];
+        list.forEach(ch => {
+          if (pinnedSet.has(ch.id)) pinnedChannels.push(ch);
+          else unpinnedChannels.push(ch);
+        });
+        pinnedChannels.sort((a, b) => pinnedList.indexOf(a.id) - pinnedList.indexOf(b.id));
+        list = [...pinnedChannels, ...unpinnedChannels];
+      }
+
+      // Assign live channel numbers (#1, #2, #3...)
+      return list.map((ch, idx) => ({
+        ...ch,
+        number: idx + 1,
+        isPinned: pinnedSet.has(ch.id),
+        isFavorite: favSet.has(ch.id)
+      }));
+    }
+
+    // Move any channel directly to Position #1
+    function moveChannelToNumberOne(channelId, event) {
+      if (event) event.stopPropagation();
+      const pid = state.activePlaylistId;
+      const currentList = getProcessedChannels().map(c => c.id);
+      const filtered = currentList.filter(id => id !== channelId);
+      state.customOrder[pid] = [channelId, ...filtered];
+
+      // If other channels are pinned, ensure this channel is also pinned at the very front so it strictly becomes #1
+      const pinned = state.pinnedIds[pid] || [];
+      if (pinned.length > 0) {
+        state.pinnedIds[pid] = [channelId, ...pinned.filter(id => id !== channelId)];
+      }
+
+      saveUserCustomizations();
+      renderChannelList();
+      showToast(t("toastMovedOne"), "success");
+    }
+
+    function togglePinChannel(channelId, event) {
+      if (event) event.stopPropagation();
+      const pid = state.activePlaylistId;
+      const pinned = state.pinnedIds[pid] || [];
+      if (pinned.includes(channelId)) {
+        state.pinnedIds[pid] = pinned.filter(id => id !== channelId);
+        showToast(t("toastUnpinned"), "info");
+      } else {
+        state.pinnedIds[pid] = [channelId, ...pinned];
+        showToast(t("toastPinned"), "success");
+      }
+      saveUserCustomizations();
+      renderChannelList();
+    }
+
+    function toggleFavoriteChannel(channelId, event) {
+      if (event) event.stopPropagation();
+      const pid = state.activePlaylistId;
+      const favs = state.favoriteIds[pid] || [];
+      if (favs.includes(channelId)) {
+        state.favoriteIds[pid] = favs.filter(id => id !== channelId);
+        showToast(t("toastFavRemoved"), "info");
+      } else {
+        state.favoriteIds[pid] = [...favs, channelId];
+        showToast(t("toastFavAdded"), "success");
+      }
+      saveUserCustomizations();
+      renderChannelList();
+    }
+
+    function deleteChannel(channelId, event) {
+      if (event) event.stopPropagation();
+      const pid = state.activePlaylistId;
+      const deleted = state.deletedIds[pid] || [];
+      if (!deleted.includes(channelId)) {
+        state.deletedIds[pid] = [...deleted, channelId];
+      }
+      // Also clean from pinned/favorites
+      state.pinnedIds[pid] = (state.pinnedIds[pid] || []).filter(id => id !== channelId);
+      state.favoriteIds[pid] = (state.favoriteIds[pid] || []).filter(id => id !== channelId);
+
+      saveUserCustomizations();
+      renderChannelList();
+      showToast(t("toastDeleted"), "info");
+    }
+
+    function restoreDeletedChannels() {
+      const pid = state.activePlaylistId;
+      state.deletedIds[pid] = [];
+      saveUserCustomizations();
+      renderChannelList();
+      showToast(t("toastRestored"), "success");
+    }
+
+    // =========================================================================
+    // 6. VIDEO PLAYER & HLS STREAM ENGINE
+    // =========================================================================
+    function playChannel(channelId) {
+      const allChannels = getProcessedChannels();
+      const channel = allChannels.find(c => c.id === channelId);
+      if (!channel) return;
+
+      state.currentChannelId = channel.id;
+      const video = document.getElementById("video-player");
+      const loader = document.getElementById("player-loader");
+      const placeholder = document.getElementById("player-placeholder");
+
+      placeholder.classList.add("hidden");
+      loader.classList.remove("hidden");
+
+      // Update UI Metadata
+      document.getElementById("osd-ch-num").textContent = `#${channel.number}`;
+      document.getElementById("osd-ch-name").textContent = channel.name;
+      document.getElementById("osd-ch-group").textContent = channel.group;
+
+      document.getElementById("bar-ch-number").textContent = `#${channel.number}`;
+      document.getElementById("bar-ch-title").textContent = channel.name;
+      document.getElementById("bar-ch-category").textContent = channel.group;
+
+      const logoEl = document.getElementById("bar-ch-logo");
+      logoEl.src = channel.logo || `https://placehold.co/48x48/1e293b/94a3b8?text=${encodeURIComponent(channel.name.slice(0, 2).toUpperCase())}`;
+
+      // Highlight active item in list
+      renderChannelList();
+
+      // Destroy previous HLS instance
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+
+      const streamUrl = channel.url;
+
+      if (Hls.isSupported() && (streamUrl.includes(".m3u8") || !streamUrl.endsWith(".mp4"))) {
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true
+        });
+        hlsInstance.loadSource(streamUrl);
+        hlsInstance.attachMedia(video);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          loader.classList.add("hidden");
+          video.play().catch(() => {});
+          updatePlayPauseIcon(true);
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            loader.classList.add("hidden");
+            showToast(t("toastStreamError"), "error");
+          }
+        });
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS (Safari / iOS / Apple TV)
+        video.src = streamUrl;
+        video.addEventListener("loadedmetadata", () => {
+          loader.classList.add("hidden");
+          video.play().catch(() => {});
+          updatePlayPauseIcon(true);
+        }, { once: true });
+      } else {
+        // Direct MP4 / TS fallback
+        video.src = streamUrl;
+        loader.classList.add("hidden");
+        video.play().catch(() => {});
+        updatePlayPauseIcon(true);
+      }
+
+      // On mobile screens, smoothly scroll up to video player when channel selected
+      if (window.innerWidth < 1024) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+
+    function playFirstChannel() {
+      const list = getProcessedChannels();
+      if (list.length > 0) {
+        playChannel(list[0].id);
+      }
+    }
+
+    function nextChannel() {
+      const list = getProcessedChannels();
+      if (list.length === 0) return;
+      const idx = list.findIndex(c => c.id === state.currentChannelId);
+      const nextIdx = idx === -1 || idx + 1 >= list.length ? 0 : idx + 1;
+      playChannel(list[nextIdx].id);
+    }
+
+    function prevChannel() {
+      const list = getProcessedChannels();
+      if (list.length === 0) return;
+      const idx = list.findIndex(c => c.id === state.currentChannelId);
+      const prevIdx = idx <= 0 ? list.length - 1 : idx - 1;
+      playChannel(list[prevIdx].id);
+    }
+
+    function togglePlayPause() {
+      const video = document.getElementById("video-player");
+      if (!video.src && !hlsInstance) {
+        playFirstChannel();
+        return;
+      }
+      if (video.paused) {
+        video.play();
+        updatePlayPauseIcon(true);
+      } else {
+        video.pause();
+        updatePlayPauseIcon(false);
+      }
+    }
+
+    function updatePlayPauseIcon(isPlaying) {
+      const btn = document.getElementById("play-pause-btn");
+      btn.innerHTML = isPlaying
+        ? `<i data-lucide="pause" class="w-4 h-4"></i>`
+        : `<i data-lucide="play" class="w-4 h-4"></i>`;
+      lucide.createIcons();
+    }
+
+    function toggleMute() {
+      const video = document.getElementById("video-player");
+      video.muted = !video.muted;
+      const btn = document.getElementById("mute-btn");
+      btn.innerHTML = video.muted
+        ? `<i data-lucide="volume-x" class="w-4 h-4 text-red-400"></i>`
+        : `<i data-lucide="volume-2" class="w-4 h-4"></i>`;
+      lucide.createIcons();
+    }
+
+    function toggleTheaterMode() {
+      document.body.classList.toggle("theater-active");
+    }
+
+    function toggleFullscreen() {
+      const container = document.getElementById("player-container");
+      if (!document.fullscreenElement) {
+        container.requestFullscreen?.().catch(() => {});
+      } else {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    }
+
+    // =========================================================================
+    // 7. RENDERING UI COMPONENTS
+    // =========================================================================
+    function populateCategories() {
+      const select = document.getElementById("category-select");
+      const groups = new Set(["ALL"]);
+      state.channels.forEach(ch => {
+        if (ch.group) groups.add(ch.group);
+      });
+
+      select.innerHTML = "";
+      groups.forEach(g => {
+        const opt = document.createElement("option");
+        opt.value = g;
+        opt.textContent = g === "ALL" ? t("allCategories") : g;
+        select.appendChild(opt);
+      });
+      select.value = state.categoryFilter;
+    }
+
+    function setFilterTab(tab) {
+      state.filterTab = tab;
+      ["all", "favorites", "pinned"].forEach(name => {
+        const el = document.getElementById(`tab-${name}`);
+        if (name === tab) {
+          el.className = "tv-focusable py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 accent-bg text-white";
+        } else {
+          el.className = "tv-focusable py-2 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700";
+        }
+      });
+      renderChannelList();
+    }
+
+    function setCategoryFilter(val) {
+      state.categoryFilter = val;
+      renderChannelList();
+    }
+
+    function renderChannelList() {
+      const listEl = document.getElementById("channel-list");
+      const allProcessed = getProcessedChannels();
+
+      // Update Tab Counters
+      document.getElementById("count-all").textContent = `(${allProcessed.length})`;
+      document.getElementById("count-favorites").textContent = `(${allProcessed.filter(c => c.isFavorite).length})`;
+      document.getElementById("count-pinned").textContent = `(${allProcessed.filter(c => c.isPinned).length})`;
+
+      // Show/Hide Restore button if any channels are deleted
+      const deletedCount = (state.deletedIds[state.activePlaylistId] || []).length;
+      const restoreBtn = document.getElementById("restore-deleted-btn");
+      if (deletedCount > 0) restoreBtn.classList.remove("hidden");
+      else restoreBtn.classList.add("hidden");
+
+      // Filter by tab, category, and search query
+      const query = state.searchQuery.toLowerCase();
+      const filtered = allProcessed.filter(ch => {
+        if (state.filterTab === "favorites" && !ch.isFavorite) return false;
+        if (state.filterTab === "pinned" && !ch.isPinned) return false;
+        if (state.categoryFilter !== "ALL" && ch.group !== state.categoryFilter) return false;
+        if (query && !ch.name.toLowerCase().includes(query) && !ch.group.toLowerCase().includes(query)) return false;
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = `
+          <div class="py-12 text-center text-slate-400 text-sm">
+            ${t("emptyChannels")}
+          </div>
+        `;
+        return;
+      }
+
+      // Render up to 300 channels at once for snappy mobile & Smart TV performance
+      const displaySlice = filtered.slice(0, 300);
+      listEl.innerHTML = displaySlice.map(ch => {
+        const isPlaying = ch.id === state.currentChannelId;
+        const fallbackLogo = `https://placehold.co/48x48/1e293b/94a3b8?text=${encodeURIComponent(ch.name.slice(0, 2).toUpperCase())}`;
+
+        return `
+          <div
+            tabindex="0"
+            onclick="playChannel('${ch.id}')"
+            onkeydown="if(event.key==='Enter') playChannel('${ch.id}')"
+            class="tv-focusable group rounded-2xl p-2.5 border transition-all cursor-pointer flex items-center justify-between gap-2.5 ${
+              isPlaying
+                ? "bg-slate-800/95 accent-border shadow-lg"
+                : "bg-slate-900/90 border-slate-800 hover:bg-slate-800/70"
+            }"
+          >
+            <!-- Channel Number, Logo & Info -->
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0 ${
+                ch.number === 1
+                  ? "accent-bg text-white shadow"
+                  : isPlaying
+                  ? "bg-slate-700 accent-text"
+                  : "bg-slate-800 text-slate-400"
+              }">
+                ${ch.number}
+              </div>
+
+              <img
+                src="${ch.logo || fallbackLogo}"
+                onerror="this.src='${fallbackLogo}'"
+                alt=""
+                loading="lazy"
+                class="w-10 h-10 rounded-xl object-contain bg-slate-800/90 p-1 border border-slate-700/70 shrink-0"
+              />
+
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-1.5">
+                  <h4 class="text-sm font-bold text-white truncate">${escapeHtml(ch.name)}</h4>
+                  ${ch.isPinned ? `<i data-lucide="pin" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>` : ""}
+                </div>
+                <p class="text-xs text-slate-400 truncate">${escapeHtml(ch.group)}</p>
+              </div>
+            </div>
+
+            <!-- Channel Management Controls (Move to #1, Pin, Favorite, Delete) -->
+            <div class="flex items-center gap-1 shrink-0">
+              <!-- Move to #1 -->
+              <button
+                onclick="moveChannelToNumberOne('${ch.id}', event)"
+                title="${t("moveToOne")}"
+                class="tv-focusable px-2 py-1.5 rounded-lg bg-slate-800 hover:bg-blue-600 text-slate-300 hover:text-white text-[11px] font-extrabold border border-slate-700 transition-colors"
+              >
+                #1
+              </button>
+
+              <!-- Pin -->
+              <button
+                onclick="togglePinChannel('${ch.id}', event)"
+                title="${t("pinChannel")}"
+                class="tv-focusable p-1.5 rounded-lg border transition-colors ${
+                  ch.isPinned
+                    ? "bg-amber-500/20 border-amber-500/50 text-amber-400"
+                    : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                }"
+              >
+                <i data-lucide="pin" class="w-3.5 h-3.5"></i>
+              </button>
+
+              <!-- Favorite -->
+              <button
+                onclick="toggleFavoriteChannel('${ch.id}', event)"
+                title="${t("favChannel")}"
+                class="tv-focusable p-1.5 rounded-lg border transition-colors ${
+                  ch.isFavorite
+                    ? "bg-rose-500/20 border-rose-500/50 text-rose-400"
+                    : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                }"
+              >
+                <i data-lucide="heart" class="w-3.5 h-3.5 ${ch.isFavorite ? "fill-rose-400" : ""}"></i>
+              </button>
+
+              <!-- Delete -->
+              <button
+                onclick="deleteChannel('${ch.id}', event)"
+                title="${t("delChannel")}"
+                class="tv-focusable p-1.5 rounded-lg bg-slate-800 hover:bg-red-600/80 border border-slate-700 text-slate-400 hover:text-white transition-colors"
+              >
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      lucide.createIcons();
+    }
+
+    function renderSavedPlaylists() {
+      const container = document.getElementById("saved-playlists-list");
+      container.innerHTML = state.playlists.map(pl => {
+        const isActive = pl.id === state.activePlaylistId;
+        return `
+          <div
+            onclick="selectPlaylist('${pl.id}')"
+            class="tv-focusable p-3 rounded-xl border cursor-pointer flex items-center justify-between gap-3 ${
+              isActive
+                ? "bg-slate-800 accent-border"
+                : "bg-slate-800/40 border-slate-700/70 hover:bg-slate-800"
+            }"
+          >
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center shrink-0">
+                <i data-lucide="${pl.type === "file" ? "file-text" : "globe"}" class="w-4 h-4 accent-text"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-bold text-white truncate">${escapeHtml(pl.name)}</h4>
+                  ${isActive ? `<span class="text-[10px] font-bold px-2 py-0.5 rounded accent-bg text-white">${t("activeBadge")}</span>` : ""}
+                </div>
+                <p class="text-xs text-slate-400 truncate" dir="ltr">${pl.type === "file" ? "Local M3U File" : escapeHtml(pl.url)}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              ${!isActive ? `<span class="px-3 py-1.5 rounded-lg bg-slate-700 text-xs font-bold text-white">${t("loadBtn")}</span>` : ""}
+              ${
+                state.playlists.length > 1
+                  ? `<button onclick="deletePlaylist('${pl.id}', event)" class="p-2 rounded-lg bg-slate-900 hover:bg-red-600 text-slate-400 hover:text-white">
+                      <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>`
+                  : ""
+              }
+            </div>
+          </div>
+        `;
+      }).join("");
+      lucide.createIcons();
+    }
+
+    // =========================================================================
+    // 8. SETTINGS, LANGUAGE & THEME CONTROLLERS
+    // =========================================================================
+    function openSettingsModal() {
+      renderSavedPlaylists();
+      updateSettingsModalHighlights();
+      document.getElementById("settings-modal").classList.remove("hidden");
+    }
+
+    function closeSettingsModal() {
+      document.getElementById("settings-modal").classList.add("hidden");
+    }
+
+    function setLanguage(lang) {
+      state.lang = lang;
+      localStorage.setItem(STORAGE_KEYS.LANG, lang);
+      applyLanguage();
+      updateSettingsModalHighlights();
+    }
+
+    function toggleLanguage() {
+      setLanguage(state.lang === "en" ? "ku" : "en");
+    }
+
+    function applyLanguage() {
+      const isKurdish = state.lang === "ku";
+      document.documentElement.lang = isKurdish ? "ku" : "en";
+      document.documentElement.dir = isKurdish ? "rtl" : "ltr";
+
+      // Update header toggle badge
+      document.getElementById("lang-badge-text").textContent = isKurdish ? "English" : "کوردی";
+
+      // Translate all static data-i18n nodes
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (TRANSLATIONS[state.lang][key]) {
+          el.textContent = TRANSLATIONS[state.lang][key];
+        }
+      });
+
+      document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
+        const key = el.getAttribute("data-i18n-placeholder");
+        if (TRANSLATIONS[state.lang][key]) {
+          el.placeholder = TRANSLATIONS[state.lang][key];
+        }
+      });
+
+      populateCategories();
+      renderChannelList();
+    }
+
+    function setTheme(theme) {
+      state.theme = theme;
+      localStorage.setItem(STORAGE_KEYS.THEME, theme);
+      document.body.setAttribute("data-theme", theme);
+      updateSettingsModalHighlights();
+    }
+
+    function updateSettingsModalHighlights() {
+      // Language buttons
+      const enBtn = document.getElementById("lang-btn-en");
+      const kuBtn = document.getElementById("lang-btn-ku");
+      if (state.lang === "en") {
+        enBtn.className = "tv-focusable p-3.5 rounded-xl border-2 accent-border bg-slate-800 text-start flex items-center justify-between";
+        kuBtn.className = "tv-focusable p-3.5 rounded-xl border-2 border-slate-700 bg-slate-800/40 text-start flex items-center justify-between";
+      } else {
+        kuBtn.className = "tv-focusable p-3.5 rounded-xl border-2 accent-border bg-slate-800 text-start flex items-center justify-between";
+        enBtn.className = "tv-focusable p-3.5 rounded-xl border-2 border-slate-700 bg-slate-800/40 text-start flex items-center justify-between";
+      }
+
+      // Theme buttons
+      document.querySelectorAll("[data-theme-btn]").forEach(btn => {
+        if (btn.getAttribute("data-theme-btn") === state.theme) {
+          btn.classList.add("accent-border");
+          btn.classList.remove("border-transparent");
+        } else {
+          btn.classList.remove("accent-border");
+          btn.classList.add("border-transparent");
+        }
+      });
+    }
+
+    // =========================================================================
+    // 9. UTILITIES & EVENT LISTENERS
+    // =========================================================================
+    function t(key) {
+      return (TRANSLATIONS[state.lang] && TRANSLATIONS[state.lang][key]) || TRANSLATIONS.en[key] || key;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function showToast(message, type = "info") {
+      const container = document.getElementById("toast-container");
+      const toast = document.createElement("div");
+      const bgMap = {
+        success: "bg-emerald-600 border-emerald-400",
+        error: "bg-rose-600 border-rose-400",
+        warning: "bg-amber-600 border-amber-400",
+        info: "bg-slate-800 border-slate-600"
+      };
+      toast.className = `${bgMap[type] || bgMap.info} border text-white text-xs sm:text-sm font-bold px-4 py-3 rounded-xl shadow-xl text-center transition-all duration-300`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(-8px)";
+        setTimeout(() => toast.remove(), 300);
+      }, 2800);
+    }
+
+    // Search Inputs Sync
+    function handleSearch(val) {
+      state.searchQuery = val;
+      document.getElementById("search-input").value = val;
+      document.getElementById("mobile-search-input").value = val;
+      const clearBtn = document.getElementById("clear-search-btn");
+      if (val) clearBtn.classList.remove("hidden");
+      else clearBtn.classList.add("hidden");
+      renderChannelList();
+    }
+
+    document.getElementById("search-input").addEventListener("input", e => handleSearch(e.target.value));
+    document.getElementById("mobile-search-input").addEventListener("input", e => handleSearch(e.target.value));
+    document.getElementById("clear-search-btn").addEventListener("click", () => handleSearch(""));
+
+    // Smart TV Remote Control Keyboard Shortcuts (Channel Up / Down / Escape)
+    document.addEventListener("keydown", e => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
+      if (e.key === "ChannelUp" || e.key === "PageUp") {
+        e.preventDefault();
+        nextChannel();
+      } else if (e.key === "ChannelDown" || e.key === "PageDown") {
+        e.preventDefault();
+        prevChannel();
+      } else if (e.key === "Escape") {
+        closeSettingsModal();
+      }
+    });
+
+    // Boot Application on Window Load
+    window.onload = function () {
+      lucide.createIcons();
+      setTheme(state.theme);
+      initPlaylists();
+      applyLanguage();
+      loadActivePlaylist();
+    };
+  </script>
+</body>
+</html>
